@@ -1,9 +1,16 @@
 #!/usr/bin/env ruby
 
+require "open3"
+
+def text_file?(filename)
+  file_type, status = Open3.capture2e("file", filename)
+  status.success? && file_type.include?("text")
+end
+
 begin
   raise "Invalid argument" if ARGV.size != 2 and ARGV.size != 3
 
-  from_str, to_str, file_mask_str = ARGV
+  from_str, to, file_mask_str = ARGV
   begin
     from = eval(from_str)
   rescue
@@ -19,8 +26,20 @@ begin
     file_mask = file_mask_str
   end
 
+  begin
+    eval(to)
+    to_str = nil
+  rescue => ex
+    p ex
+    to_str = to
+  end
+
   print "from:"
-  p from: from, to: to_str, file_mask: file_mask
+  if to_str
+    p from: from, to_str: to_str, file_mask: file_mask
+  else
+    p from: from, eval: to, file_mask: file_mask
+  end
 
   files = `git ls-files`
   files.lines.each do |path|
@@ -31,21 +50,24 @@ begin
       end
     end
 
+    next unless text_file? path
     buf = nil
     open(path) do |f|
       old_buf = f.read
       begin
-        p path: path, eval: "old_buf.gsub(from, \"#{to_str}\")"
-        buf = old_buf.gsub(from) { eval(to_str) }
+        if to_str
+          buf = old_buf.gsub(from, to_str)
+        else
+          buf = old_buf.gsub(from) { eval(to) }
+        end
         buf = nil if old_buf == buf
       rescue => ex
-        #puts "path:#{path}"
-        #p ex
+        puts "error:#{ex.inspect} on:#{path} backtrace:#{ex.backtrace}"
         next
       end
     end
     if buf
-      puts "change: #{path}"
+      puts "replaced:#{path}"
       open(path, "w") do |f|
         f.write buf
       end
