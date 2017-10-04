@@ -1,6 +1,7 @@
 #!/usr/bin/env ruby
 
 require "open3"
+require "optparse"
 
 def text_file?(filename)
   file_type, status = Open3.capture2e("file", filename)
@@ -8,6 +9,10 @@ def text_file?(filename)
 end
 
 begin
+  opt = OptionParser.new
+  option = false
+  opt.on('-d', '--dry-run', 'dry run') { |v| option = v }
+  opt.parse!(ARGV)
   raise "Invalid argument" if ARGV.size != 2 and ARGV.size != 3
 
   from_str, to, file_mask_str = ARGV
@@ -68,8 +73,12 @@ begin
     end
     if buf
       puts "replaced:#{path}"
-      open(path, "w") do |f|
-        f.write buf
+      unless option
+        open(path, "w") do |f|
+          f.write buf
+        end
+      else
+        puts buf
       end
     end
   end
